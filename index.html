@@ -1,23 +1,19 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="theme-color" content="#0f2744">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <title>SafeTrack – Gestão de Treinamentos</title>
- 
+
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc,
-           onSnapshot, query, orderBy, serverTimestamp, where }
+  import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-           signOut, onAuthStateChanged, sendPasswordResetEmail }
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
- 
+
   const firebaseConfig = {
     apiKey: "AIzaSyA54DFUohTR9W5uQpmbGq5gDq1vim7Jrfg",
     authDomain: "safetrack-c96ef.firebaseapp.com",
@@ -26,43 +22,37 @@
     messagingSenderId: "1062220975476",
     appId: "1:1062220975476:web:f9372f588f9f8b768eb021"
   };
- 
+
   const app  = initializeApp(firebaseConfig);
   const db   = getFirestore(app);
   const auth = getAuth(app);
- 
-  window.db      = db;
-  window.auth    = auth;
-  window.fsLib   = { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, where };
+
+  window.db   = db;
+  window.auth = auth;
+  window.fsLib = { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs };
   window.authLib = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };
- 
+
+  // Observador de autenticação
   onAuthStateChanged(auth, user => {
     if (user) {
       window.usuarioLogado = user;
-      window.isAdmin = (user.email === window.ADMIN_EMAIL);
       document.getElementById('tela-login').style.display = 'none';
-      document.getElementById('app').style.display        = 'block';
-      document.getElementById('user-email').textContent   = user.email;
-      document.getElementById('admin-badge').style.display = window.isAdmin ? 'inline-flex' : 'none';
-      pararListeners();
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('user-email').textContent = user.email;
       iniciarApp();
     } else {
       window.usuarioLogado = null;
-      window.isAdmin       = false;
-      pararListeners();
       document.getElementById('tela-login').style.display = 'flex';
-      document.getElementById('app').style.display        = 'none';
+      document.getElementById('app').style.display = 'none';
     }
   });
 </script>
- 
+
 <!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<!-- QRCode gerador -->
+<!-- QRCode -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- QR Scanner real -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
- 
+
 <style>
 :root{
   --azul:#0f2744;--azul2:#1a4a8a;--verde:#1a7a3a;--vermelho:#b91c1c;
@@ -71,8 +61,8 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:var(--texto);min-height:100vh}
- 
-/* LOGIN */
+
+/* ── TELA DE LOGIN ── */
 #tela-login{display:flex;align-items:center;justify-content:center;min-height:100vh;
   background:linear-gradient(135deg,#0a1e3c 0%,#0f2744 60%,#1a4a8a 100%);padding:20px}
 .login-card{background:#fff;border-radius:20px;padding:32px 24px;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(0,0,0,.3)}
@@ -83,31 +73,50 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
 .login-tab{display:flex;background:var(--cinza);border-radius:10px;padding:4px;margin-bottom:20px}
 .login-tab button{flex:1;padding:8px;border:none;background:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--sub);transition:all .2s}
 .login-tab button.ativo{background:#fff;color:var(--azul);box-shadow:0 1px 4px rgba(0,0,0,.1)}
-.login-msg{border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
-.login-msg.err{background:#fee2e2;color:#991b1b}
-.login-msg.ok{background:#dcfce7;color:#166534}
+.login-err{background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
+.login-ok{background:#dcfce7;color:#166534;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
 .forgot{text-align:right;margin-top:-8px;margin-bottom:14px}
-.forgot a{font-size:12px;color:var(--azul2);cursor:pointer}
- 
-/* APP */
+.forgot a{font-size:12px;color:var(--azul2);cursor:pointer;text-decoration:none}
+
+/* ── APP ── */
 #app{display:none;max-width:430px;margin:0 auto;position:relative}
 .tela{display:none;min-height:100vh;padding-bottom:80px}
 .tela.ativa{display:block}
- 
+
 /* TOPBAR */
 .topbar{background:var(--azul);color:#fff;padding:14px 16px 12px;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:10px}
 .topbar h1{font-size:17px;font-weight:700;flex:1}
+.topbar .sub{font-size:11px;opacity:.65;font-weight:400}
 .topbar button{background:rgba(255,255,255,.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
- 
+
 /* NAVBAR */
 .navbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#fff;border-top:1px solid var(--borda);display:flex;z-index:200;box-shadow:0 -2px 10px rgba(0,0,0,.08)}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:9px 2px 7px;gap:2px;border:none;background:none;cursor:pointer;color:var(--sub);font-size:9px;font-weight:600;transition:color .2s}
 .nav-btn.ativo{color:var(--azul2)}
 .nav-btn .ico{font-size:20px;line-height:1}
- 
-/* CARDS / LISTAS */
+
+/* CARD */
 .card{background:#fff;border-radius:var(--r);box-shadow:var(--sombra);margin:12px 16px;overflow:hidden}
 .card-body{padding:14px 16px}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.badge.valido{background:#dcfce7;color:#166534}
+.badge.vencer{background:#fef3c7;color:#92400e}
+.badge.vencido{background:#fee2e2;color:#991b1b}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--azul) 0%,var(--azul2) 100%);color:#fff;padding:18px 20px 26px;margin-bottom:-16px}
+.hero h2{font-size:20px;font-weight:800;margin-bottom:3px}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 16px 0}
+.stat-card{background:#fff;border-radius:10px;padding:12px 8px;text-align:center;box-shadow:var(--sombra)}
+.stat-card .num{font-size:26px;font-weight:800;line-height:1}
+.stat-card .rot{font-size:9px;color:var(--sub);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.stat-card.verde .num{color:var(--verde)}
+.stat-card.amar  .num{color:var(--amarelo)}
+.stat-card.verm  .num{color:var(--vermelho)}
+
+/* LISTA */
 .lista-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--borda);cursor:pointer;transition:background .15s}
 .lista-item:last-child{border-bottom:none}
 .lista-item:active{background:var(--cinza)}
@@ -115,33 +124,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
 .lista-item .info{flex:1;min-width:0}
 .lista-item .info h3{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lista-item .info p{font-size:12px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- 
-/* BADGES */
-.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
-.badge.valido{background:#dcfce7;color:#166534}
-.badge.vencer{background:#fef3c7;color:#92400e}
-.badge.vencido{background:#fee2e2;color:#991b1b}
-.badge.admin{background:#fef3c7;color:#92400e;font-size:9px;padding:2px 7px}
- 
-/* HERO */
-.hero{background:linear-gradient(135deg,var(--azul) 0%,var(--azul2) 100%);color:#fff;padding:18px 20px 26px;margin-bottom:-16px}
-.hero h2{font-size:20px;font-weight:800;margin-bottom:3px}
-.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 16px 0}
-.stat-card{background:#fff;border-radius:10px;padding:12px 8px;text-align:center;box-shadow:var(--sombra)}
-.stat-card .num{font-size:26px;font-weight:800;line-height:1}
-.stat-card .rot{font-size:9px;color:var(--sub);margin-top:2px;font-weight:700;text-transform:uppercase}
-.stat-card.verde .num{color:var(--verde)}
-.stat-card.amar  .num{color:var(--amarelo)}
-.stat-card.verm  .num{color:var(--vermelho)}
- 
+
 /* FORM */
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:11px;font-weight:700;color:var(--sub);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 13px;border:1.5px solid var(--borda);border-radius:8px;font-size:14px;font-family:inherit;color:var(--texto);background:#fff;transition:border-color .2s;outline:none}
-.form-group input:focus,.form-group select:focus{border-color:var(--azul2)}
-.form-group input.erro{border-color:var(--vermelho)}
-.campo-erro{font-size:11px;color:var(--vermelho);margin-top:3px;display:none}
- 
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--azul2)}
+
 /* BOTÕES */
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:13px 20px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;width:100%;font-family:inherit;margin-bottom:10px}
 .btn:active{opacity:.85}
@@ -151,8 +140,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
 .btn-outline{background:transparent;border:2px solid var(--azul2);color:var(--azul2)}
 .btn-gold{background:linear-gradient(135deg,#b7860b,#d4a017);color:#fff}
 .btn-cinza{background:var(--cinza);color:var(--texto);border:1.5px solid var(--borda)}
+
+/* FAB */
 .fab{position:fixed;bottom:84px;right:20px;width:52px;height:52px;border-radius:50%;background:var(--azul2);color:#fff;border:none;font-size:24px;box-shadow:0 4px 16px rgba(26,74,138,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:150}
- 
+
 /* MODAL */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;align-items:flex-end}
 .overlay.aberto{display:flex}
@@ -160,12 +151,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .modal-handle{width:40px;height:4px;background:var(--borda);border-radius:2px;margin:0 auto 16px}
 .modal h2{font-size:17px;font-weight:800;margin-bottom:16px}
- 
-/* MISC */
+
+/* CHIPS */
 .chips{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding:8px 16px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{padding:6px 14px;border-radius:20px;border:1.5px solid var(--borda);background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--sub);white-space:nowrap;flex-shrink:0}
 .chip.ativo{border-color:var(--azul2);background:var(--azul2);color:#fff}
+
+/* MISC */
 .sec-title{padding:14px 16px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--sub)}
 .notif{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--borda);align-items:flex-start;cursor:pointer}
 .notif:active{background:var(--cinza)}
@@ -189,23 +182,24 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
 .tog-btn.p{border-color:var(--verde);background:#dcfce7;color:#166534}
 .tog-btn.a{border-color:var(--vermelho);background:#fee2e2;color:#991b1b}
 .tog-btn.j{border-color:var(--amarelo);background:#fef3c7;color:#92400e}
-/* QR Scanner */
-.qr-scan-wrap{background:#000;border-radius:16px;margin:16px;overflow:hidden;position:relative;aspect-ratio:1}
-#qr-reader{width:100%!important}
-#qr-reader video{width:100%!important;height:100%!important;object-fit:cover}
-.qr-overlay-frame{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.qr-corner{width:180px;height:180px;border:3px solid #0af;border-radius:12px;position:relative}
+.qr-area{background:#000;border-radius:16px;margin:16px 16px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;overflow:hidden;position:relative}
+.qr-frame{width:190px;height:190px;border:3px solid #fff;border-radius:12px;position:relative}
+.qr-line{position:absolute;width:170px;height:3px;background:linear-gradient(90deg,transparent,#0af,transparent);animation:scan 2s infinite;left:7px}
+@keyframes scan{0%{top:10px}100%{top:176px}}
 .share-box{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:12px}
 .share-link{font-size:11px;color:#1e40af;word-break:break-all;background:#dbeafe;padding:7px;border-radius:6px;margin:6px 0 8px}
 .cert-preview{background:#1a1a2e;border-radius:12px;overflow:hidden;margin-bottom:12px}
 .cert-preview canvas{width:100%!important;height:auto!important;display:block}
-.emp-tag{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;margin-top:3px}
 #toast{display:none;position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+/* empresa tag */
+.emp-tag{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;margin-top:3px}
 </style>
 </head>
 <body>
- 
-<!-- ══ TELA DE LOGIN ══ -->
+
+<!-- ══════════════════════════════════════
+     TELA DE LOGIN
+══════════════════════════════════════ -->
 <div id="tela-login">
   <div class="login-card">
     <div class="login-logo">
@@ -213,40 +207,46 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
       <h1>SafeTrack</h1>
       <p>Gestão de Treinamentos de Segurança</p>
     </div>
+
+    <!-- Abas Entrar / Cadastrar -->
     <div class="login-tab">
-      <button class="ativo" id="tab-entrar"    onclick="trocarTab('entrar')">Entrar</button>
-      <button            id="tab-cadastrar" onclick="trocarTab('cadastrar')">Criar conta</button>
+      <button class="ativo" id="tab-entrar" onclick="trocarTab('entrar')">Entrar</button>
+      <button id="tab-cadastrar" onclick="trocarTab('cadastrar')">Criar conta</button>
     </div>
-    <div id="login-msg" class="login-msg"></div>
-    <!-- Entrar -->
+
+    <div id="login-err" class="login-err"></div>
+    <div id="login-ok"  class="login-ok"></div>
+
+    <!-- Painel Entrar -->
     <div id="painel-entrar">
-      <div class="form-group"><label>E-mail</label><input id="l-email" type="email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')fazerLogin()"></div>
-      <div class="form-group"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')fazerLogin()"></div>
+      <div class="form-group"><label>E-mail</label><input id="l-email" type="email" placeholder="seu@email.com"></div>
+      <div class="form-group"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••"></div>
       <div class="forgot"><a onclick="esqueceuSenha()">Esqueci minha senha</a></div>
       <button class="btn btn-primary" onclick="fazerLogin()">Entrar →</button>
     </div>
-    <!-- Cadastrar -->
+
+    <!-- Painel Cadastrar -->
     <div id="painel-cadastrar" style="display:none">
-      <div class="form-group"><label>Nome completo</label><input id="r-nome" type="text" placeholder="Seu nome"></div>
-      <div class="form-group"><label>E-mail</label><input id="r-email" type="email" placeholder="seu@email.com"></div>
-      <div class="form-group"><label>Senha (mín. 6 caracteres)</label><input id="r-senha" type="password" placeholder="••••••••"></div>
+      <div class="form-group"><label>Nome completo</label><input id="c-reg-nome" type="text" placeholder="Seu nome"></div>
+      <div class="form-group"><label>E-mail</label><input id="c-reg-email" type="email" placeholder="seu@email.com"></div>
+      <div class="form-group"><label>Senha (mínimo 6 dígitos)</label><input id="c-reg-senha" type="password" placeholder="••••••••"></div>
       <button class="btn btn-verde" onclick="criarConta()">Criar conta →</button>
     </div>
   </div>
 </div>
- 
-<!-- ══ APP ══ -->
+
+<!-- ══════════════════════════════════════
+     APP PRINCIPAL
+══════════════════════════════════════ -->
 <div id="app">
- 
-<!-- DASHBOARD -->
+
+<!-- ── DASHBOARD ── -->
 <div class="tela ativa" id="t-dashboard">
   <div class="hero">
-    <div style="font-size:11px;opacity:.6;margin-bottom:2px;font-weight:700;letter-spacing:.5px">BOM DIA 👋</div>
+    <div style="font-size:11px;opacity:.6;margin-bottom:3px;font-weight:700;letter-spacing:.5px">BOM DIA 👋</div>
     <h2>SafeTrack</h2>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
-      <span style="font-size:12px;opacity:.7" id="user-email"></span>
-      <span class="badge admin" id="admin-badge" style="display:none">👑 ADMIN</span>
-    </div>
+    <p style="font-size:12px;opacity:.7" id="user-email"></p>
+    <p style="font-size:12px;opacity:.6;margin-top:1px">Gestão de Treinamentos de Segurança</p>
   </div>
   <div class="stats-row">
     <div class="stat-card verde"><div class="num" id="st-validos">—</div><div class="rot">Válidos</div></div>
@@ -257,17 +257,17 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
   <div class="card" style="margin-top:0" id="dash-alertas"><div class="loading">⏳ Carregando…</div></div>
   <div class="sec-title">Acesso rápido</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 8px">
-    <button class="btn btn-primary"  style="margin:0" onclick="irPara('t-empresas')">🏢 Empresas</button>
-    <button class="btn btn-primary"  style="margin:0;background:#1a5c8a" onclick="irPara('t-alunos')">👷 Alunos</button>
-    <button class="btn btn-verde"    style="margin:0" onclick="irPara('t-certificados')">🏅 Certificados</button>
-    <button class="btn btn-outline"  style="margin:0" onclick="irPara('t-presenca')">✅ Presença</button>
+    <button class="btn btn-primary" style="margin:0" onclick="irPara('t-empresas')">🏢 Empresas</button>
+    <button class="btn btn-primary" style="margin:0;background:#1a5c8a" onclick="irPara('t-alunos')">👷 Alunos</button>
+    <button class="btn btn-verde"   style="margin:0" onclick="irPara('t-certificados')">🏅 Certificados</button>
+    <button class="btn btn-outline" style="margin:0" onclick="irPara('t-presenca')">✅ Presença</button>
   </div>
-  <div style="padding:8px 16px 20px">
+  <div style="padding:0 16px 20px;margin-top:4px">
     <button class="btn btn-cinza" style="margin:0" onclick="fazerLogout()">🚪 Sair da conta</button>
   </div>
 </div>
- 
-<!-- EMPRESAS -->
+
+<!-- ── EMPRESAS ── -->
 <div class="tela" id="t-empresas">
   <div class="topbar">
     <button onclick="irPara('t-dashboard')" style="font-size:18px">‹</button>
@@ -281,8 +281,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
   <div class="card" id="lista-empresas" style="margin-top:0"><div class="loading">⏳ Carregando…</div></div>
   <button class="fab" onclick="abrirModal('modal-empresa')">＋</button>
 </div>
- 
-<!-- ALUNOS -->
+
+<!-- ── ALUNOS ── -->
 <div class="tela" id="t-alunos">
   <div class="topbar">
     <button onclick="irPara('t-dashboard')" style="font-size:18px">‹</button>
@@ -299,8 +299,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
   <div class="card" id="lista-alunos" style="margin-top:0"><div class="loading">⏳ Carregando…</div></div>
   <button class="fab" onclick="abrirModal('modal-aluno')">＋</button>
 </div>
- 
-<!-- CERTIFICADOS -->
+
+<!-- ── CERTIFICADOS ── -->
 <div class="tela" id="t-certificados">
   <div class="topbar">
     <button onclick="irPara('t-dashboard')" style="font-size:18px">‹</button>
@@ -320,54 +320,48 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
   <div class="card" id="lista-certs" style="margin-top:0"><div class="loading">⏳ Carregando…</div></div>
   <button class="fab" onclick="abrirModal('modal-cert')">＋</button>
 </div>
- 
-<!-- PRESENÇA -->
+
+<!-- ── PRESENÇA ── -->
 <div class="tela" id="t-presenca">
   <div class="topbar">
     <button onclick="irPara('t-dashboard')" style="font-size:18px">‹</button>
     <h1>✅ Lista de Presença</h1>
   </div>
-  <div class="card"><div class="card-body">
-    <div class="form-group"><label>Curso / Turma</label><input type="text" id="pres-curso" placeholder="Ex: NR-35 – TRABALHO EM ALTURA"></div>
-    <div class="form-group"><label>Filtrar por Empresa</label>
-      <select id="pres-empresa" onchange="renderPresenca()"><option value="">Todos os alunos</option></select>
+  <div class="card">
+    <div class="card-body">
+      <div class="form-group"><label>Curso / Turma</label><input type="text" id="pres-curso" placeholder="Ex: NR-35 – Trabalho em Altura"></div>
+      <div class="form-group"><label>Empresa (opcional)</label>
+        <select id="pres-empresa" onchange="renderPresenca()">
+          <option value="">Todos os alunos</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Data da Aula</label><input type="date" id="pres-data"></div>
     </div>
-    <div class="form-group"><label>Data da Aula</label><input type="date" id="pres-data"></div>
-  </div></div>
+  </div>
   <div class="sec-title">Alunos</div>
-  <div class="card" style="margin-top:0" id="lista-presenca"><div class="loading">⏳…</div></div>
+  <div class="card" style="margin-top:0" id="lista-presenca"><div class="loading">⏳ Carregando…</div></div>
   <div style="padding:0 16px 20px">
     <button class="btn btn-verde" onclick="salvarPresenca()">💾 Salvar Lista de Presença</button>
   </div>
 </div>
- 
-<!-- QR CODE -->
+
+<!-- ── QR CODE ── -->
 <div class="tela" id="t-qr">
   <div class="topbar">
     <button onclick="irPara('t-dashboard')" style="font-size:18px">‹</button>
     <h1>📱 QR Code</h1>
   </div>
   <div class="chips">
-    <div class="chip ativo" id="chip-scan" onclick="mudarModoQR('scan',this)">📷 Escanear</div>
-    <div class="chip"       id="chip-gerar" onclick="mudarModoQR('gerar',this)">🔗 Gerar</div>
+    <div class="chip ativo" onclick="mudarModoQR('scan',this)">📷 Escanear</div>
+    <div class="chip" onclick="mudarModoQR('gerar',this)">🔗 Gerar</div>
   </div>
- 
-  <!-- SCANNER REAL -->
   <div id="qr-scan">
-    <div class="qr-scan-wrap">
-      <div id="qr-reader"></div>
-      <div class="qr-overlay-frame"><div class="qr-corner"></div></div>
+    <div class="qr-area">
+      <div class="qr-frame"><div class="qr-line"></div></div>
+      <p style="font-size:12px;opacity:.6;margin-top:16px;text-align:center;padding:0 20px">Aponte a câmera para o QR Code<br>no capacete ou crachá</p>
     </div>
-    <div style="padding:0 16px">
-      <div id="qr-scan-status" style="text-align:center;font-size:13px;color:var(--sub);padding:10px 0">
-        Aguardando câmera… (requer HTTPS)
-      </div>
-      <button class="btn btn-cinza" id="btn-iniciar-scan" onclick="iniciarScanner()">📷 Iniciar câmera</button>
-      <button class="btn btn-danger" id="btn-parar-scan" onclick="pararScanner()" style="display:none">⏹️ Parar câmera</button>
-    </div>
+    <div style="padding:0 16px"><button class="btn btn-primary" onclick="simularScan()">🔍 Simular leitura (demo)</button></div>
   </div>
- 
-  <!-- GERAR QR -->
   <div id="qr-gerar" style="display:none">
     <div class="card"><div class="card-body">
       <div class="form-group"><label>Selecionar Aluno</label>
@@ -382,8 +376,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
     </div></div>
   </div>
 </div>
- 
-<!-- PERFIL COLABORADOR -->
+
+<!-- ── PERFIL COLABORADOR ── -->
 <div class="tela" id="t-perfil">
   <div class="topbar">
     <button onclick="irPara('t-alunos')" style="font-size:18px">‹</button>
@@ -396,50 +390,31 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
     <p id="p-empresa-tag" style="margin-top:6px"></p>
   </div>
   <div class="sec-title">Certificados & Treinamentos</div>
-  <div class="card" style="margin-top:0" id="p-certs"><div class="loading">⏳…</div></div>
+  <div class="card" style="margin-top:0" id="p-certs"><div class="loading">⏳ Carregando…</div></div>
   <div style="padding:12px 16px 20px">
     <button class="btn btn-outline" onclick="irPara('t-alunos')">← Voltar</button>
   </div>
 </div>
- 
+
 <!-- ══ MODAIS ══ -->
- 
-<!-- Empresa -->
+
+<!-- Cadastrar Empresa -->
 <div class="overlay" id="modal-empresa" onclick="fecharModal('modal-empresa')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
     <h2>🏢 Cadastrar Empresa</h2>
-    <div class="form-group"><label>Razão Social *</label>
-      <input id="e-razao" type="text" placeholder="Ex: CONSTRUTORA ABC LTDA" oninput="this.value=this.value.toUpperCase()">
-      <div class="campo-erro" id="err-e-razao">Campo obrigatório</div>
-    </div>
-    <div class="form-group"><label>Nome Fantasia</label>
-      <input id="e-fantasia" type="text" placeholder="Ex: CONSTRUTORA ABC" oninput="this.value=this.value.toUpperCase()">
-    </div>
-    <div class="form-group"><label>CNPJ *</label>
-      <input id="e-cnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18" oninput="mascaraCNPJ(this)">
-      <div class="campo-erro" id="err-e-cnpj">CNPJ inválido (ex: 00.000.000/0000-00)</div>
-    </div>
-    <div class="form-group"><label>Segmento / Setor</label>
-      <input id="e-setor" type="text" placeholder="Ex: CONSTRUÇÃO CIVIL" oninput="this.value=this.value.toUpperCase()">
-    </div>
-    <div class="form-group"><label>Responsável</label>
-      <input id="e-resp" type="text" placeholder="Nome do responsável" oninput="this.value=this.value.toUpperCase()">
-    </div>
-    <div class="form-group"><label>E-mail</label>
-      <input id="e-email" type="email" placeholder="contato@empresa.com">
-      <div class="campo-erro" id="err-e-email">E-mail inválido</div>
-    </div>
-    <div class="form-group"><label>Telefone</label>
-      <input id="e-tel" type="tel" placeholder="(11) 99999-9999" maxlength="15" oninput="mascaraTel(this)">
-    </div>
-    <div class="form-group"><label>Cidade / UF</label>
-      <input id="e-cidade" type="text" placeholder="Ex: SÃO PAULO / SP" oninput="this.value=this.value.toUpperCase()">
-    </div>
+    <div class="form-group"><label>Razão Social *</label><input id="e-razao" type="text" placeholder="Ex: Construtora ABC Ltda"></div>
+    <div class="form-group"><label>Nome Fantasia</label><input id="e-fantasia" type="text" placeholder="Ex: Construtora ABC"></div>
+    <div class="form-group"><label>CNPJ *</label><input id="e-cnpj" type="text" placeholder="00.000.000/0000-00"></div>
+    <div class="form-group"><label>Segmento / Setor</label><input id="e-setor" type="text" placeholder="Ex: Construção Civil"></div>
+    <div class="form-group"><label>Responsável</label><input id="e-resp" type="text" placeholder="Nome do responsável"></div>
+    <div class="form-group"><label>E-mail</label><input id="e-email" type="email" placeholder="contato@empresa.com"></div>
+    <div class="form-group"><label>Telefone</label><input id="e-tel" type="tel" placeholder="(11) 99999-9999"></div>
+    <div class="form-group"><label>Cidade / UF</label><input id="e-cidade" type="text" placeholder="Ex: São Paulo / SP"></div>
     <button class="btn btn-primary" onclick="salvarEmpresa()">💾 Salvar Empresa</button>
   </div>
 </div>
- 
+
 <!-- Detalhe Empresa -->
 <div class="overlay" id="modal-empresa-det" onclick="fecharModal('modal-empresa-det')">
   <div class="modal" onclick="event.stopPropagation()">
@@ -449,11 +424,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
     <div class="sec-title" style="padding:0 0 8px">Alunos vinculados</div>
     <div id="emp-det-alunos" style="margin-bottom:14px"></div>
     <button class="btn btn-primary" onclick="novoAlunoEmpresa()">👷 Adicionar Aluno</button>
-    <button class="btn btn-danger"  id="emp-det-del">🗑️ Excluir Empresa</button>
+    <button class="btn btn-danger" id="emp-det-del">🗑️ Excluir Empresa</button>
   </div>
 </div>
- 
-<!-- Aluno -->
+
+<!-- Cadastrar Aluno -->
 <div class="overlay" id="modal-aluno" onclick="fecharModal('modal-aluno')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
@@ -462,73 +437,50 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
       <select id="a-empresa-id">
         <option value="">— selecione a empresa —</option>
       </select>
-      <div class="campo-erro" id="err-a-empresa">Selecione uma empresa</div>
     </div>
-    <div class="form-group"><label>Nome Completo *</label>
-      <input id="a-nome" type="text" placeholder="Ex: JOÃO DA SILVA" oninput="this.value=this.value.toUpperCase()">
-      <div class="campo-erro" id="err-a-nome">Campo obrigatório</div>
-    </div>
-    <div class="form-group"><label>CPF *</label>
-      <input id="a-cpf" type="text" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCPF(this)">
-      <div class="campo-erro" id="err-a-cpf">CPF inválido (ex: 000.000.000-00)</div>
-    </div>
-    <div class="form-group"><label>Cargo / Função</label>
-      <input id="a-cargo" type="text" placeholder="Ex: ELETRICISTA" oninput="this.value=this.value.toUpperCase()">
-    </div>
-    <div class="form-group"><label>E-mail</label>
-      <input id="a-email" type="email" placeholder="joao@empresa.com">
-    </div>
-    <div class="form-group"><label>Telefone</label>
-      <input id="a-tel" type="tel" placeholder="(11) 99999-9999" maxlength="15" oninput="mascaraTel(this)">
-    </div>
+    <div class="form-group"><label>Nome Completo *</label><input id="a-nome" type="text" placeholder="Ex: João da Silva"></div>
+    <div class="form-group"><label>CPF *</label><input id="a-cpf" type="text" placeholder="000.000.000-00"></div>
+    <div class="form-group"><label>Cargo / Função</label><input id="a-cargo" type="text" placeholder="Ex: Eletricista"></div>
+    <div class="form-group"><label>E-mail</label><input id="a-email" type="email" placeholder="joao@empresa.com"></div>
+    <div class="form-group"><label>Telefone</label><input id="a-tel" type="tel" placeholder="(11) 99999-9999"></div>
     <button class="btn btn-primary" onclick="salvarAluno()">💾 Salvar Aluno</button>
   </div>
 </div>
- 
-<!-- Certificado -->
+
+<!-- Emitir Certificado -->
 <div class="overlay" id="modal-cert" onclick="fecharModal('modal-cert')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
     <h2>🏅 Emitir Certificado</h2>
-    <div class="form-group"><label>Filtrar por Empresa</label>
+    <div class="form-group"><label>Empresa</label>
       <select id="c-empresa-filtro" onchange="filtrarAlunosCert()">
         <option value="">Todas as empresas</option>
       </select>
     </div>
     <div class="form-group"><label>Aluno *</label>
       <select id="c-aluno"><option value="">— selecione —</option></select>
-      <div class="campo-erro" id="err-c-aluno">Selecione um aluno</div>
     </div>
     <div class="form-group"><label>Curso *</label>
       <select id="c-curso" onchange="calcularVencimento()">
         <option value="">— selecione —</option>
-        <option value="NR-35 – TRABALHO EM ALTURA|8h|24">NR-35 – Trabalho em Altura (24 meses)</option>
-        <option value="NR-10 – SEGURANÇA EM INSTALAÇÕES ELÉTRICAS|40h|24">NR-10 – Segurança Elétrica (24 meses)</option>
-        <option value="NR-33 – SEGURANÇA EM ESPAÇOS CONFINADOS|16h|12">NR-33 – Espaço Confinado (12 meses)</option>
-        <option value="NR-12 – SEGURANÇA EM MÁQUINAS E EQUIPAMENTOS|8h|24">NR-12 – Máquinas (24 meses)</option>
-        <option value="NR-20 – SEGURANÇA COM INFLAMÁVEIS|8h|12">NR-20 – Inflamáveis (12 meses)</option>
-        <option value="NR-06 – EQUIPAMENTOS DE PROTEÇÃO INDIVIDUAL|4h|12">NR-06 – EPI (12 meses)</option>
-        <option value="CIPA – COMISSÃO INTERNA DE PREVENÇÃO DE ACIDENTES|20h|12">CIPA – NR-05 (12 meses)</option>
-        <option value="PRIMEIROS SOCORROS|8h|24">Primeiros Socorros (24 meses)</option>
-        <option value="NR-18 – SEGURANÇA NA CONSTRUÇÃO CIVIL|8h|12">NR-18 – Construção Civil (12 meses)</option>
+        <option value="NR-35 – Trabalho em Altura|8h|24">NR-35 – Trabalho em Altura (24 meses)</option>
+        <option value="NR-10 – Segurança em Instalações Elétricas|40h|24">NR-10 – Segurança Elétrica (24 meses)</option>
+        <option value="NR-33 – Segurança em Espaços Confinados|16h|12">NR-33 – Espaço Confinado (12 meses)</option>
+        <option value="NR-12 – Segurança em Máquinas e Equipamentos|8h|24">NR-12 – Máquinas (24 meses)</option>
+        <option value="NR-20 – Segurança com Inflamáveis e Combustíveis|8h|12">NR-20 – Inflamáveis (12 meses)</option>
+        <option value="NR-06 – Equipamentos de Proteção Individual|4h|12">NR-06 – EPI (12 meses)</option>
+        <option value="CIPA – Comissão Interna de Prevenção de Acidentes|20h|12">CIPA – NR-05 (12 meses)</option>
+        <option value="Primeiros Socorros|8h|24">Primeiros Socorros (24 meses)</option>
+        <option value="NR-18 – Segurança na Construção Civil|8h|12">NR-18 – Construção Civil (12 meses)</option>
       </select>
-      <div class="campo-erro" id="err-c-curso">Selecione um curso</div>
     </div>
-    <div class="form-group"><label>Data de Conclusão *</label>
-      <input id="c-emissao" type="date" oninput="calcularVencimento()">
-      <div class="campo-erro" id="err-c-emissao">Data obrigatória</div>
-    </div>
-    <div class="venc-box" id="c-venc-box">
-      <p>📅 Vencimento calculado automaticamente:</p>
-      <div class="vd" id="c-venc-data">—</div>
-    </div>
-    <div class="form-group"><label>Nº do Certificado</label>
-      <input id="c-num" type="text" placeholder="Deixe em branco para gerar automático">
-    </div>
+    <div class="form-group"><label>Data de Conclusão *</label><input id="c-emissao" type="date" oninput="calcularVencimento()"></div>
+    <div class="venc-box" id="c-venc-box"><p>📅 Vencimento calculado automaticamente:</p><div class="vd" id="c-venc-data">—</div></div>
+    <div class="form-group"><label>Nº do Certificado</label><input id="c-num" type="text" placeholder="Deixe em branco para gerar automático"></div>
     <button class="btn btn-verde" onclick="salvarCertificado()">🏅 Emitir Certificado</button>
   </div>
 </div>
- 
+
 <!-- Detalhe Certificado -->
 <div class="overlay" id="modal-cert-det" onclick="fecharModal('modal-cert-det')">
   <div class="modal" onclick="event.stopPropagation()">
@@ -548,30 +500,23 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--cinza);color:v
     <button class="btn btn-danger" id="det-del-btn">🗑️ Excluir</button>
   </div>
 </div>
- 
+
 <div id="toast"></div>
- 
+
 <!-- NAVBAR -->
 <nav class="navbar">
   <button class="nav-btn ativo" id="nav-dashboard"    onclick="irPara('t-dashboard')">   <span class="ico">🏠</span><span>Início</span></button>
   <button class="nav-btn"       id="nav-empresas"     onclick="irPara('t-empresas')">    <span class="ico">🏢</span><span>Empresas</span></button>
   <button class="nav-btn"       id="nav-alunos"       onclick="irPara('t-alunos')">      <span class="ico">👷</span><span>Alunos</span></button>
-  <button class="nav-btn"       id="nav-certificados" onclick="irPara('t-certificados')"><span class="ico">🏅</span><span>Certs.</span></button>
+  <button class="nav-btn"       id="nav-certificados" onclick="irPara('t-certificados')"><span class="ico">🏅</span><span>Certificados</span></button>
   <button class="nav-btn"       id="nav-qr"           onclick="irPara('t-qr')">          <span class="ico">📱</span><span>QR Code</span></button>
 </nav>
+
 </div><!-- #app -->
- 
-<!-- ══════════ JAVASCRIPT COMPLETO ══════════ -->
+
+<!-- ══════════════════════════════════════  JAVASCRIPT  ══════════════════════════════════════ -->
 <script>
-// ═══════════════════════════════════════════════
-// CONFIGURAÇÕES GLOBAIS
-// ═══════════════════════════════════════════════
-const ADMIN_EMAIL = "danielhenriquesilva1985@gmail.com"; // ← ALTERE para o seu e-mail admin
-window.ADMIN_EMAIL = ADMIN_EMAIL;
- 
-// ═══════════════════════════════════════════════
-// ESTADO GLOBAL
-// ═══════════════════════════════════════════════
+// ─── ESTADO ──────────────────────────────────────────────
 let todasEmpresas = [];
 let todosAlunos   = [];
 let todosCerts    = [];
@@ -579,48 +524,96 @@ let filtroStatus  = 'todos';
 let filtroEmpresa = '';
 let certAtual     = null;
 let empresaAtual  = null;
-let _listeners    = []; // controle de listeners ativos
-let _html5Scanner = null;
- 
-// ═══════════════════════════════════════════════
-// HELPERS: MÁSCARAS E VALIDAÇÕES
-// ═══════════════════════════════════════════════
-function mascaraCPF(inp) {
-  let v = inp.value.replace(/\D/g,'').slice(0,11);
-  v = v.replace(/(\d{3})(\d)/,'$1.$2');
-  v = v.replace(/(\d{3})(\d)/,'$1.$2');
-  v = v.replace(/(\d{3})(\d{1,2})$/,'$1-$2');
-  inp.value = v;
+let presListeners = [];
+
+// ─── LOGIN ────────────────────────────────────────────────
+function trocarTab(aba) {
+  document.getElementById('painel-entrar').style.display    = aba==='entrar'    ? '' : 'none';
+  document.getElementById('painel-cadastrar').style.display = aba==='cadastrar' ? '' : 'none';
+  document.getElementById('tab-entrar').classList.toggle('ativo',   aba==='entrar');
+  document.getElementById('tab-cadastrar').classList.toggle('ativo', aba==='cadastrar');
+  document.getElementById('login-err').style.display='none';
+  document.getElementById('login-ok').style.display='none';
 }
-function mascaraCNPJ(inp) {
-  let v = inp.value.replace(/\D/g,'').slice(0,14);
-  v = v.replace(/(\d{2})(\d)/,'$1.$2');
-  v = v.replace(/(\d{3})(\d)/,'$1.$2');
-  v = v.replace(/(\d{3})(\d)/,'$1/$2');
-  v = v.replace(/(\d{4})(\d{1,2})$/,'$1-$2');
-  inp.value = v;
+function mostrarErroLogin(msg) {
+  const el=document.getElementById('login-err');
+  el.textContent=msg; el.style.display='block';
 }
-function mascaraTel(inp) {
-  let v = inp.value.replace(/\D/g,'').slice(0,11);
-  if(v.length<=10) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
-  else             v = v.replace(/(\d{2})(\d{5})(\d{0,4})/,'($1) $2-$3');
-  inp.value = v.replace(/-$/,'');
+function mostrarOkLogin(msg) {
+  const el=document.getElementById('login-ok');
+  el.textContent=msg; el.style.display='block';
 }
-function validarCPF(cpf){ return /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(cpf); }
-function validarCNPJ(cnpj){ return /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(cnpj); }
-function validarEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
- 
-function mostrarErroCampo(id, show) {
-  const el = document.getElementById('err-'+id);
-  if(el) el.style.display = show ? 'block' : 'none';
-  const inp = document.getElementById(id.replace('err-',''));
-  if(inp) inp.classList.toggle('erro', show);
+
+async function fazerLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const senha  = document.getElementById('l-senha').value;
+  if (!email||!senha) { mostrarErroLogin('Preencha e-mail e senha.'); return; }
+  try {
+    const { signInWithEmailAndPassword } = window.authLib;
+    await signInWithEmailAndPassword(window.auth, email, senha);
+  } catch(e) {
+    const msgs = {
+      'auth/invalid-credential':'E-mail ou senha incorretos.',
+      'auth/user-not-found':'Usuário não encontrado.',
+      'auth/wrong-password':'Senha incorreta.',
+      'auth/too-many-requests':'Muitas tentativas. Tente novamente mais tarde.'
+    };
+    mostrarErroLogin(msgs[e.code]||'Erro ao entrar: '+e.message);
+  }
 }
-function limparErros(...ids) { ids.forEach(id => mostrarErroCampo(id, false)); }
- 
-// ═══════════════════════════════════════════════
-// HELPERS: DATA E STATUS
-// ═══════════════════════════════════════════════
+
+async function criarConta() {
+  const nome  = document.getElementById('c-reg-nome').value.trim();
+  const email = document.getElementById('c-reg-email').value.trim();
+  const senha  = document.getElementById('c-reg-senha').value;
+  if (!nome||!email||!senha) { mostrarErroLogin('Preencha todos os campos.'); return; }
+  if (senha.length<6) { mostrarErroLogin('Senha deve ter no mínimo 6 caracteres.'); return; }
+  try {
+    const { createUserWithEmailAndPassword } = window.authLib;
+    await createUserWithEmailAndPassword(window.auth, email, senha);
+    mostrarOkLogin('Conta criada! Entrando…');
+  } catch(e) {
+    const msgs = {
+      'auth/email-already-in-use':'Este e-mail já está cadastrado.',
+      'auth/invalid-email':'E-mail inválido.',
+      'auth/weak-password':'Senha muito fraca.'
+    };
+    mostrarErroLogin(msgs[e.code]||'Erro: '+e.message);
+  }
+}
+
+async function esqueceuSenha() {
+  const email = document.getElementById('l-email').value.trim();
+  if (!email) { mostrarErroLogin('Digite seu e-mail acima primeiro.'); return; }
+  const { sendPasswordResetEmail } = window.authLib;
+  await sendPasswordResetEmail(window.auth, email);
+  document.getElementById('login-err').style.display='none';
+  mostrarOkLogin('E-mail de redefinição enviado! Verifique sua caixa de entrada.');
+}
+
+async function fazerLogout() {
+  const { signOut } = window.authLib;
+  await signOut(window.auth);
+}
+
+// ─── NAVEGAÇÃO ────────────────────────────────────────────
+function irPara(id) {
+  document.querySelectorAll('.tela').forEach(t=>t.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('ativo'));
+  const nav = document.getElementById('nav-'+id.replace('t-',''));
+  if (nav) nav.classList.add('ativo');
+  window.scrollTo(0,0);
+}
+function abrirModal(id) { document.getElementById(id).classList.add('aberto'); }
+function fecharModal(id) { document.getElementById(id).classList.remove('aberto'); }
+function mostrarToast(msg,erro=false) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=erro?'#b91c1c':'#1e293b'; t.style.display='block';
+  setTimeout(()=>t.style.display='none',3000);
+}
+
+// ─── HELPERS DATA ─────────────────────────────────────────
 function calcStatus(v){
   if(!v) return 'valido';
   const h=new Date(); h.setHours(0,0,0,0);
@@ -639,160 +632,40 @@ function badgeHtml(st,dias){
   return`<span class="badge vencer">⚠️ A VENCER – ${dias} dias</span>`;
 }
 function gerarNumCert(){
-  return`${new Date().getFullYear()}/${String(todosCerts.length+1).padStart(4,'0')}`;
+  return `${new Date().getFullYear()}/${String(todosCerts.length+1).padStart(4,'0')}`;
 }
- 
-// ═══════════════════════════════════════════════
-// UI: NAVEGAÇÃO / MODAIS / TOAST
-// ═══════════════════════════════════════════════
-function irPara(id){
-  document.querySelectorAll('.tela').forEach(t=>t.classList.remove('ativa'));
-  document.getElementById(id).classList.add('ativa');
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('ativo'));
-  const nav=document.getElementById('nav-'+id.replace('t-',''));
-  if(nav) nav.classList.add('ativo');
-  // Para scanner ao sair da tela QR
-  if(id !== 't-qr') pararScanner();
-  window.scrollTo(0,0);
-}
-function abrirModal(id){ document.getElementById(id).classList.add('aberto'); }
-function fecharModal(id){ document.getElementById(id).classList.remove('aberto'); }
-function mostrarToast(msg, erro=false){
-  const t=document.getElementById('toast');
-  t.textContent=msg;
-  t.style.background=erro?'#b91c1c':'#1e293b';
-  t.style.display='block';
-  clearTimeout(t._t);
-  t._t=setTimeout(()=>t.style.display='none',3200);
-}
- 
-// ═══════════════════════════════════════════════
-// AUTH: LOGIN / CADASTRO / LOGOUT
-// ═══════════════════════════════════════════════
-function trocarTab(aba){
-  document.getElementById('painel-entrar').style.display    = aba==='entrar'    ?'':'none';
-  document.getElementById('painel-cadastrar').style.display = aba==='cadastrar' ?'':'none';
-  document.getElementById('tab-entrar').classList.toggle('ativo',    aba==='entrar');
-  document.getElementById('tab-cadastrar').classList.toggle('ativo', aba==='cadastrar');
-  ocultarMsgLogin();
-}
-function msgLogin(txt, tipo='err'){
-  const el=document.getElementById('login-msg');
-  el.textContent=txt; el.className='login-msg '+tipo; el.style.display='block';
-}
-function ocultarMsgLogin(){ document.getElementById('login-msg').style.display='none'; }
- 
-const ERROS_AUTH = {
-  'auth/invalid-credential':'E-mail ou senha incorretos.',
-  'auth/user-not-found':'Usuário não encontrado.',
-  'auth/wrong-password':'Senha incorreta.',
-  'auth/email-already-in-use':'Este e-mail já está cadastrado.',
-  'auth/invalid-email':'E-mail inválido.',
-  'auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).',
-  'auth/too-many-requests':'Muitas tentativas. Aguarde e tente novamente.'
-};
- 
-async function fazerLogin(){
-  const email=document.getElementById('l-email').value.trim();
-  const senha=document.getElementById('l-senha').value;
-  if(!email||!senha){ msgLogin('Preencha e-mail e senha.'); return; }
-  try{
-    await window.authLib.signInWithEmailAndPassword(window.auth,email,senha);
-  }catch(e){ msgLogin(ERROS_AUTH[e.code]||'Erro: '+e.message); }
-}
- 
-async function criarConta(){
-  const nome=document.getElementById('r-nome').value.trim();
-  const email=document.getElementById('r-email').value.trim();
-  const senha=document.getElementById('r-senha').value;
-  if(!nome)        { msgLogin('Informe seu nome.'); return; }
-  if(!validarEmail(email)){ msgLogin('E-mail inválido.'); return; }
-  if(senha.length<6){ msgLogin('Senha deve ter no mínimo 6 caracteres.'); return; }
-  try{
-    await window.authLib.createUserWithEmailAndPassword(window.auth,email,senha);
-    msgLogin('Conta criada com sucesso!','ok');
-  }catch(e){ msgLogin(ERROS_AUTH[e.code]||'Erro: '+e.message); }
-}
- 
-async function esqueceuSenha(){
-  const email=document.getElementById('l-email').value.trim();
-  if(!email){ msgLogin('Digite seu e-mail no campo acima.'); return; }
-  try{
-    await window.authLib.sendPasswordResetEmail(window.auth,email);
-    msgLogin('E-mail de redefinição enviado! Verifique sua caixa de entrada.','ok');
-  }catch(e){ msgLogin(ERROS_AUTH[e.code]||'Erro: '+e.message); }
-}
- 
-async function fazerLogout(){
-  pararScanner();
-  await window.authLib.signOut(window.auth);
-}
- 
-// ═══════════════════════════════════════════════
-// LISTENERS: CONTROLE DE CICLO DE VIDA
-// ═══════════════════════════════════════════════
-function pararListeners(){
-  _listeners.forEach(unsub => { try{ unsub(); }catch(e){} });
-  _listeners = [];
-  todasEmpresas=[]; todosAlunos=[]; todosCerts=[];
-}
- 
-function criarQuery(col){
-  const {collection,query,orderBy,where}=window.fsLib;
-  const db=window.db, uid=window.usuarioLogado?.uid;
-  const base=collection(db,col);
-  // Admin vê tudo; outros só veem seus dados
-  if(window.isAdmin){
-    return query(base, orderBy(col==='certificados'?'criadoEm':'criadoEm','desc'));
-  }
-  return query(base, where('userId','==',uid), orderBy('criadoEm','desc'));
-}
- 
-// ═══════════════════════════════════════════════
-// INICIAR APP
-// ═══════════════════════════════════════════════
-function iniciarApp(){
-  const{onSnapshot}=window.fsLib;
- 
-  // Query para empresas (ordenar por nome)
-  const{collection,query,orderBy,where}=window.fsLib;
-  const db=window.db, uid=window.usuarioLogado?.uid;
- 
-  const qEmp = window.isAdmin
-    ? query(collection(db,'empresas'),orderBy('razaoSocial'))
-    : query(collection(db,'empresas'),where('userId','==',uid),orderBy('razaoSocial'));
- 
-  const qAlu = window.isAdmin
-    ? query(collection(db,'alunos'),orderBy('nome'))
-    : query(collection(db,'alunos'),where('userId','==',uid),orderBy('nome'));
- 
-  const qCer = window.isAdmin
-    ? query(collection(db,'certificados'),orderBy('criadoEm','desc'))
-    : query(collection(db,'certificados'),where('userId','==',uid),orderBy('criadoEm','desc'));
- 
-  _listeners.push(
-    onSnapshot(qEmp, snap=>{
-      todasEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
-      renderEmpresas(); popularSelectEmpresas(); renderChipsEmpresa();
-    }),
-    onSnapshot(qAlu, snap=>{
-      todosAlunos=snap.docs.map(d=>({id:d.id,...d.data()}));
-      renderAlunos(); popularSelectAlunos(); renderPresenca();
-    }),
-    onSnapshot(qCer, snap=>{
-      todosCerts=snap.docs.map(d=>({id:d.id,...d.data()}));
-      renderCerts(); renderDashboard();
-    })
-  );
- 
+
+// ─── INICIAR APP ─────────────────────────────────────────
+function iniciarApp() {
+  const {collection,onSnapshot,query,orderBy}=window.fsLib;
+  const db=window.db;
+
+  onSnapshot(query(collection(db,'empresas'),orderBy('razaoSocial')), snap=>{
+    todasEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderEmpresas();
+    popularSelectEmpresas();
+  });
+
+  onSnapshot(query(collection(db,'alunos'),orderBy('nome')), snap=>{
+    todosAlunos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderAlunos();
+    popularSelectAlunos();
+    renderPresenca();
+    renderChipsEmpresa();
+  });
+
+  onSnapshot(query(collection(db,'certificados'),orderBy('criadoEm','desc')), snap=>{
+    todosCerts=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderCerts();
+    renderDashboard();
+  });
+
   document.getElementById('pres-data').value = new Date().toISOString().split('T')[0];
   document.getElementById('c-emissao').value  = new Date().toISOString().split('T')[0];
   calcularVencimento();
 }
- 
-// ═══════════════════════════════════════════════
-// DASHBOARD
-// ═══════════════════════════════════════════════
+
+// ─── DASHBOARD ────────────────────────────────────────────
 function renderDashboard(){
   document.getElementById('st-validos').textContent  = todosCerts.filter(c=>calcStatus(c.vencimento)==='valido').length;
   document.getElementById('st-avencer').textContent  = todosCerts.filter(c=>calcStatus(c.vencimento)==='vencer').length;
@@ -800,29 +673,22 @@ function renderDashboard(){
   const alertas=todosCerts.filter(c=>calcStatus(c.vencimento)!=='valido')
     .sort((a,b)=>(diasRestantes(a.vencimento)||0)-(diasRestantes(b.vencimento)||0)).slice(0,8);
   const el=document.getElementById('dash-alertas');
-  if(!alertas.length){
-    el.innerHTML=`<div class="empty"><div class="ico">🎉</div><p>Nenhum vencido ou a vencer!</p></div>`;return;
-  }
+  if(!alertas.length){el.innerHTML=`<div class="empty"><div class="ico">🎉</div><p>Nenhum certificado vencido ou a vencer!</p></div>`;return;}
   el.innerHTML=alertas.map(c=>{
     const st=calcStatus(c.vencimento),dias=diasRestantes(c.vencimento);
     const msg=st==='vencido'?`Vencido há ${Math.abs(dias)} dias`:`Vence em ${dias} dias`;
     return`<div class="notif" onclick="abrirDetalheCert('${c.id}')">
       <div class="notif-dot ${st==='vencido'?'v':'a'}"></div>
       <div style="flex:1"><strong style="font-size:13px">${c.alunoNome} – ${c.curso}</strong>
-      <p style="font-size:12px;color:var(--sub);margin-top:1px">${msg} · ${c.empresaNome||''}</p></div>
-    </div>`;
+      <p style="font-size:12px;color:var(--sub);margin-top:1px">${msg} · ${c.empresaNome||''}</p></div></div>`;
   }).join('');
 }
- 
-// ═══════════════════════════════════════════════
-// EMPRESAS
-// ═══════════════════════════════════════════════
+
+// ─── EMPRESAS ─────────────────────────────────────────────
 function renderEmpresas(filtro=''){
   const el=document.getElementById('lista-empresas');
   const lista=todasEmpresas.filter(e=>!filtro||
-    e.razaoSocial?.toLowerCase().includes(filtro)||
-    e.cnpj?.includes(filtro)||
-    e.nomeFantasia?.toLowerCase().includes(filtro));
+    e.razaoSocial?.toLowerCase().includes(filtro)||e.cnpj?.includes(filtro));
   if(!lista.length){
     el.innerHTML=`<div class="empty"><div class="ico">🏢</div><p>${filtro?'Nenhum resultado.':'Nenhuma empresa cadastrada.<br>Toque em ＋ para adicionar!'}</p></div>`;return;
   }
@@ -830,51 +696,42 @@ function renderEmpresas(filtro=''){
     const total=todosAlunos.filter(a=>a.empresaId===e.id).length;
     return`<div class="lista-item" onclick="abrirDetalheEmpresa('${e.id}')">
       <div class="avatar" style="background:#dbeafe;font-size:20px">🏢</div>
-      <div class="info">
-        <h3>${e.nomeFantasia||e.razaoSocial}</h3>
-        <p>${e.cnpj||''}${e.setor?' · '+e.setor:''}</p>
-      </div>
-      <div style="text-align:right;flex-shrink:0;margin-right:4px">
+      <div class="info"><h3>${e.nomeFantasia||e.razaoSocial}</h3>
+      <p>${e.cnpj||''}${e.setor?' · '+e.setor:''}</p></div>
+      <div style="text-align:right;flex-shrink:0">
         <div style="font-size:13px;font-weight:700;color:var(--azul2)">${total}</div>
         <div style="font-size:10px;color:var(--sub)">aluno${total!==1?'s':''}</div>
       </div>
-      <div style="color:var(--sub)">›</div>
+      <div style="color:var(--sub);margin-left:4px">›</div>
     </div>`;
   }).join('');
 }
-function filtrarEmpresas(){ renderEmpresas(document.getElementById('busca-empresa').value.toLowerCase()); }
- 
+function filtrarEmpresas(){renderEmpresas(document.getElementById('busca-empresa').value.toLowerCase());}
+
 async function salvarEmpresa(){
-  const razao=document.getElementById('e-razao').value.trim().toUpperCase();
+  const razao=document.getElementById('e-razao').value.trim();
   const cnpj =document.getElementById('e-cnpj').value.trim();
-  const email=document.getElementById('e-email').value.trim();
-  limparErros('e-razao','e-cnpj','e-email');
-  let ok=true;
-  if(!razao){ mostrarErroCampo('e-razao',true); ok=false; }
-  if(!validarCNPJ(cnpj)){ mostrarErroCampo('e-cnpj',true); ok=false; }
-  if(email && !validarEmail(email)){ mostrarErroCampo('e-email',true); ok=false; }
-  if(!ok) return;
+  if(!razao||!cnpj){mostrarToast('Preencha Razão Social e CNPJ!',true);return;}
   try{
     const{collection,addDoc,serverTimestamp}=window.fsLib;
     await addDoc(collection(window.db,'empresas'),{
-      userId: window.usuarioLogado.uid,
-      razaoSocial:razao,
-      nomeFantasia:document.getElementById('e-fantasia').value.trim().toUpperCase(),
-      cnpj, setor:document.getElementById('e-setor').value.trim().toUpperCase(),
-      responsavel:document.getElementById('e-resp').value.trim().toUpperCase(),
-      email, telefone:document.getElementById('e-tel').value.trim(),
-      cidade:document.getElementById('e-cidade').value.trim().toUpperCase(),
+      razaoSocial:razao, nomeFantasia:document.getElementById('e-fantasia').value.trim(),
+      cnpj, setor:document.getElementById('e-setor').value.trim(),
+      responsavel:document.getElementById('e-resp').value.trim(),
+      email:document.getElementById('e-email').value.trim(),
+      telefone:document.getElementById('e-tel').value.trim(),
+      cidade:document.getElementById('e-cidade').value.trim(),
       criadoEm:serverTimestamp()
     });
     fecharModal('modal-empresa');
-    ['e-razao','e-fantasia','e-cnpj','e-setor','e-resp','e-email','e-tel','e-cidade']
-      .forEach(id=>document.getElementById(id).value='');
+    ['e-razao','e-fantasia','e-cnpj','e-setor','e-resp','e-email','e-tel','e-cidade'].forEach(id=>document.getElementById(id).value='');
     mostrarToast('🏢 Empresa cadastrada!');
-  }catch(e){ mostrarToast('Erro: '+e.message,true); }
+  }catch(e){mostrarToast('Erro: '+e.message,true);}
 }
- 
+
 function abrirDetalheEmpresa(id){
-  const e=todasEmpresas.find(x=>x.id===id); if(!e)return;
+  const e=todasEmpresas.find(x=>x.id===id);
+  if(!e)return;
   empresaAtual=e;
   document.getElementById('emp-det-titulo').textContent=`🏢 ${e.nomeFantasia||e.razaoSocial}`;
   document.getElementById('emp-det-grid').innerHTML=`
@@ -887,17 +744,17 @@ function abrirDetalheEmpresa(id){
   const alunos=todosAlunos.filter(a=>a.empresaId===id);
   const elA=document.getElementById('emp-det-alunos');
   if(!alunos.length){
-    elA.innerHTML=`<p style="font-size:13px;color:var(--sub);text-align:center;padding:10px">Nenhum aluno vinculado.</p>`;
+    elA.innerHTML=`<p style="font-size:13px;color:var(--sub);text-align:center;padding:12px">Nenhum aluno vinculado ainda.</p>`;
   } else {
     elA.innerHTML=alunos.map(a=>{
       const certs=todosCerts.filter(c=>c.alunoId===a.id);
-      const v=certs.some(c=>calcStatus(c.vencimento)==='vencido');
-      const av=certs.some(c=>calcStatus(c.vencimento)==='vencer');
-      const st=v?'vencido':av?'vencer':'valido';
+      const venc=certs.some(c=>calcStatus(c.vencimento)==='vencido');
+      const av  =certs.some(c=>calcStatus(c.vencimento)==='vencer');
+      const st  =venc?'vencido':av?'vencer':'valido';
       return`<div class="lista-item" onclick="fecharModal('modal-empresa-det');abrirPerfil('${a.id}')">
         <div class="avatar">👷</div>
         <div class="info"><h3>${a.nome}</h3><p>${a.cargo||'—'}</p></div>
-        ${certs.length?badgeHtml(st,diasRestantes(certs.find(c=>calcStatus(c.vencimento)!=='valido')?.vencimento||certs[0]?.vencimento)):''}
+        ${certs.length?badgeHtml(st,diasRestantes(certs[0]?.vencimento)):''}
         <div style="color:var(--sub);font-size:14px">›</div>
       </div>`;
     }).join('');
@@ -905,42 +762,42 @@ function abrirDetalheEmpresa(id){
   document.getElementById('emp-det-del').onclick=()=>excluirEmpresa(id);
   abrirModal('modal-empresa-det');
 }
+
 function novoAlunoEmpresa(){
   fecharModal('modal-empresa-det');
   if(empresaAtual) document.getElementById('a-empresa-id').value=empresaAtual.id;
   abrirModal('modal-aluno');
 }
+
 async function excluirEmpresa(id){
-  if(todosAlunos.some(a=>a.empresaId===id)){
-    mostrarToast('Remova os alunos desta empresa antes de excluí-la.',true); return;
-  }
+  const temAlunos=todosAlunos.some(a=>a.empresaId===id);
+  if(temAlunos){mostrarToast('Remova os alunos desta empresa antes de excluí-la.',true);return;}
   if(!confirm('Excluir esta empresa?'))return;
   const{doc,deleteDoc}=window.fsLib;
   await deleteDoc(doc(window.db,'empresas',id));
   fecharModal('modal-empresa-det');
   mostrarToast('Empresa excluída.');
 }
- 
-// ═══════════════════════════════════════════════
-// ALUNOS
-// ═══════════════════════════════════════════════
+
+// ─── ALUNOS ───────────────────────────────────────────────
 function renderChipsEmpresa(){
   const el=document.getElementById('chips-empresa-filtro');
-  el.innerHTML=`<div class="chip ${filtroEmpresa===''?'ativo':''}" onclick="filtrarAlunoEmpresa('',this)">Todos</div>`+
-    todasEmpresas.map(e=>`<div class="chip ${filtroEmpresa===e.id?'ativo':''}" onclick="filtrarAlunoEmpresa('${e.id}',this)">${e.nomeFantasia||e.razaoSocial}</div>`).join('');
+  el.innerHTML=`<div class="chip ativo" onclick="filtrarAlunoEmpresa('',this)">Todos</div>`+
+    todasEmpresas.map(e=>`<div class="chip" onclick="filtrarAlunoEmpresa('${e.id}',this)">${e.nomeFantasia||e.razaoSocial}</div>`).join('');
 }
+
 function filtrarAlunoEmpresa(empId,chip){
   filtroEmpresa=empId;
   document.querySelectorAll('#chips-empresa-filtro .chip').forEach(c=>c.classList.remove('ativo'));
   chip.classList.add('ativo');
   renderAlunos(document.getElementById('busca-aluno').value.toLowerCase());
 }
+
 function renderAlunos(filtro=''){
   const el=document.getElementById('lista-alunos');
   const lista=todosAlunos.filter(a=>{
     if(filtroEmpresa && a.empresaId!==filtroEmpresa) return false;
-    if(filtro && !a.nome?.toLowerCase().includes(filtro) &&
-       !a.cpf?.includes(filtro) &&
+    if(filtro && !a.nome?.toLowerCase().includes(filtro) && !a.cpf?.includes(filtro) &&
        !a.empresaNome?.toLowerCase().includes(filtro)) return false;
     return true;
   });
@@ -954,32 +811,28 @@ function renderAlunos(filtro=''){
     const st=v?'vencido':av?'vencer':'valido';
     return`<div class="lista-item" onclick="abrirPerfil('${a.id}')">
       <div class="avatar">👷</div>
-      <div class="info"><h3>${a.nome}</h3><p>${a.empresaNome||''}${a.cargo?' · '+a.cargo:''}</p></div>
+      <div class="info"><h3>${a.nome}</h3>
+      <p>${a.empresaNome||''}${a.cargo?' · '+a.cargo:''}</p></div>
       ${certs.length?`<span class="badge ${st}">${st==='vencido'?'vencido':st==='vencer'?'a vencer':'ok'}</span>`:''}
       <div style="color:var(--sub);margin-left:4px">›</div>
     </div>`;
   }).join('');
 }
-function filtrarAlunos(){ renderAlunos(document.getElementById('busca-aluno').value.toLowerCase()); }
- 
+function filtrarAlunos(){renderAlunos(document.getElementById('busca-aluno').value.toLowerCase());}
+
 async function salvarAluno(){
   const empId=document.getElementById('a-empresa-id').value;
-  const nome =document.getElementById('a-nome').value.trim().toUpperCase();
+  const nome =document.getElementById('a-nome').value.trim();
   const cpf  =document.getElementById('a-cpf').value.trim();
-  limparErros('a-empresa','a-nome','a-cpf');
-  let ok=true;
-  if(!empId){ mostrarErroCampo('a-empresa',true); ok=false; }
-  if(!nome) { mostrarErroCampo('a-nome',true); ok=false; }
-  if(!validarCPF(cpf)){ mostrarErroCampo('a-cpf',true); ok=false; }
-  if(!ok) return;
+  if(!empId){mostrarToast('Selecione a empresa!',true);return;}
+  if(!nome||!cpf){mostrarToast('Preencha Nome e CPF!',true);return;}
   const emp=todasEmpresas.find(e=>e.id===empId);
   try{
     const{collection,addDoc,serverTimestamp}=window.fsLib;
     await addDoc(collection(window.db,'alunos'),{
-      userId: window.usuarioLogado.uid,
       empresaId:empId, empresaNome:emp?.nomeFantasia||emp?.razaoSocial||'',
       nome, cpf,
-      cargo:document.getElementById('a-cargo').value.trim().toUpperCase(),
+      cargo:document.getElementById('a-cargo').value.trim(),
       email:document.getElementById('a-email').value.trim(),
       telefone:document.getElementById('a-tel').value.trim(),
       criadoEm:serverTimestamp()
@@ -988,11 +841,12 @@ async function salvarAluno(){
     ['a-nome','a-cpf','a-cargo','a-email','a-tel'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('a-empresa-id').value='';
     mostrarToast('✅ Aluno cadastrado!');
-  }catch(e){ mostrarToast('Erro: '+e.message,true); }
+  }catch(e){mostrarToast('Erro: '+e.message,true);}
 }
- 
+
 function abrirPerfil(id){
-  const a=todosAlunos.find(x=>x.id===id); if(!a)return;
+  const a=todosAlunos.find(x=>x.id===id);
+  if(!a)return;
   document.getElementById('p-nome').textContent=a.nome;
   document.getElementById('p-cargo').textContent=a.cargo||'—';
   document.getElementById('p-empresa-tag').innerHTML=
@@ -1004,8 +858,9 @@ function abrirPerfil(id){
   } else {
     el.innerHTML=certs.map(c=>{
       const st=calcStatus(c.vencimento),cls=st==='valido'?'v':st==='vencer'?'a':'x';
+      const ico=st==='valido'?'✅':st==='vencer'?'⚠️':'❌';
       return`<div class="lista-item" onclick="abrirDetalheCert('${c.id}')">
-        <div class="cert-ico ${cls}">${st==='valido'?'✅':st==='vencer'?'⚠️':'❌'}</div>
+        <div class="cert-ico ${cls}">${ico}</div>
         <div class="info"><h3>${c.curso}</h3>
         <p>Emitido ${fmtData(c.emissao)} · Vence ${fmtData(c.vencimento)}</p>
         <div style="margin-top:4px">${badgeHtml(st,diasRestantes(c.vencimento))}</div></div>
@@ -1015,47 +870,46 @@ function abrirPerfil(id){
   }
   irPara('t-perfil');
 }
- 
-// ═══════════════════════════════════════════════
-// CERTIFICADOS
-// ═══════════════════════════════════════════════
+
+// ─── CERTIFICADOS ─────────────────────────────────────────
 function filtrarAlunosCert(){
   const empId=document.getElementById('c-empresa-filtro').value;
   const sel=document.getElementById('c-aluno');
   sel.innerHTML='<option value="">— selecione —</option>'+
     todosAlunos.filter(a=>!empId||a.empresaId===empId)
-      .map(a=>`<option value="${a.id}">${a.nome}</option>`).join('');
+    .map(a=>`<option value="${a.id}">${a.nome}</option>`).join('');
 }
+
 function renderCerts(filtroTexto=''){
   const el=document.getElementById('lista-certs');
   const lista=todosCerts.filter(c=>{
     const st=calcStatus(c.vencimento);
-    if(filtroStatus!=='todos'&&st!==filtroStatus) return false;
-    if(filtroTexto&&!c.alunoNome?.toLowerCase().includes(filtroTexto)&&!c.curso?.toLowerCase().includes(filtroTexto)) return false;
+    if(filtroStatus!=='todos'&&st!==filtroStatus)return false;
+    if(filtroTexto&&!c.alunoNome?.toLowerCase().includes(filtroTexto)&&!c.curso?.toLowerCase().includes(filtroTexto))return false;
     return true;
   });
-  if(!lista.length){
-    el.innerHTML=`<div class="empty"><div class="ico">🏅</div><p>Nenhum certificado encontrado.</p></div>`;return;
-  }
+  if(!lista.length){el.innerHTML=`<div class="empty"><div class="ico">🏅</div><p>Nenhum certificado encontrado.</p></div>`;return;}
   el.innerHTML=lista.map(c=>{
     const st=calcStatus(c.vencimento),dias=diasRestantes(c.vencimento);
-    const cls=st==='valido'?'v':st==='vencer'?'a':'x';
+    const ico=st==='valido'?'✅':st==='vencer'?'⚠️':'❌',cls=st==='valido'?'v':st==='vencer'?'a':'x';
     return`<div class="lista-item" onclick="abrirDetalheCert('${c.id}')">
-      <div class="cert-ico ${cls}">${st==='valido'?'✅':st==='vencer'?'⚠️':'❌'}</div>
-      <div class="info"><h3>${c.alunoNome}</h3><p>${c.curso} · ${c.empresaNome||''}</p></div>
+      <div class="cert-ico ${cls}">${ico}</div>
+      <div class="info"><h3>${c.alunoNome}</h3>
+      <p>${c.curso} · ${c.empresaNome||''}</p></div>
       ${badgeHtml(st,dias)}
     </div>`;
   }).join('');
 }
-function filtrarCerts(){ renderCerts(document.getElementById('busca-cert').value.toLowerCase()); }
+function filtrarCerts(){renderCerts(document.getElementById('busca-cert').value.toLowerCase());}
 function filtrarCertStatus(st,chip){
   filtroStatus=st;
   document.querySelectorAll('#filtro-cert-chips .chip').forEach(c=>c.classList.remove('ativo'));
   chip.classList.add('ativo'); filtrarCerts();
 }
+
 function calcularVencimento(){
   const cur=document.getElementById('c-curso').value;
-  const em =document.getElementById('c-emissao').value;
+  const em=document.getElementById('c-emissao').value;
   const box=document.getElementById('c-venc-box');
   if(!cur||!em){box.style.display='none';return;}
   const meses=parseInt(cur.split('|')[2]);
@@ -1064,23 +918,18 @@ function calcularVencimento(){
   document.getElementById('c-venc-data').textContent=fmtData(iso);
   box.style.display='block'; box.dataset.venc=iso;
 }
+
 async function salvarCertificado(){
-  const alunoId =document.getElementById('c-aluno').value;
+  const alunoId=document.getElementById('c-aluno').value;
   const cursoVal=document.getElementById('c-curso').value;
-  const emissao =document.getElementById('c-emissao').value;
-  const venc    =document.getElementById('c-venc-box').dataset.venc;
-  limparErros('c-aluno','c-curso','c-emissao');
-  let ok=true;
-  if(!alunoId) { mostrarErroCampo('c-aluno',true);   ok=false; }
-  if(!cursoVal){ mostrarErroCampo('c-curso',true);   ok=false; }
-  if(!emissao) { mostrarErroCampo('c-emissao',true); ok=false; }
-  if(!ok) return;
+  const emissao=document.getElementById('c-emissao').value;
+  const venc=document.getElementById('c-venc-box').dataset.venc;
+  if(!alunoId||!cursoVal||!emissao||!venc){mostrarToast('Preencha todos os campos!',true);return;}
   const aluno=todosAlunos.find(a=>a.id===alunoId);
   const [nomeCurso,carga,meses]=cursoVal.split('|');
   try{
     const{collection,addDoc,serverTimestamp}=window.fsLib;
     await addDoc(collection(window.db,'certificados'),{
-      userId: window.usuarioLogado.uid,
       alunoId, alunoNome:aluno.nome, cpf:aluno.cpf||'',
       empresaId:aluno.empresaId||'', empresaNome:aluno.empresaNome||'',
       cargo:aluno.cargo||'',
@@ -1094,12 +943,13 @@ async function salvarCertificado(){
     document.getElementById('c-empresa-filtro').value='';
     document.getElementById('c-venc-box').style.display='none';
     mostrarToast('🏅 Certificado emitido!');
-  }catch(e){ mostrarToast('Erro: '+e.message,true); }
+  }catch(e){mostrarToast('Erro: '+e.message,true);}
 }
- 
-// ─── Detalhe + PDF ────────────────────────────
+
+// ─── DETALHE + PDF ────────────────────────────────────────
 function abrirDetalheCert(id){
-  const c=todosCerts.find(x=>x.id===id); if(!c)return;
+  const c=todosCerts.find(x=>x.id===id);
+  if(!c)return;
   certAtual=c;
   const st=calcStatus(c.vencimento),dias=diasRestantes(c.vencimento);
   document.getElementById('det-titulo').textContent=`🏅 ${c.curso}`;
@@ -1116,6 +966,7 @@ function abrirDetalheCert(id){
   document.getElementById('det-del-btn').onclick=()=>excluirCert(id);
   abrirModal('modal-cert-det');
 }
+
 function desenharCertificado(canvas,dados){
   const W=900,H=637; canvas.width=W; canvas.height=H;
   const c=canvas.getContext('2d');
@@ -1144,25 +995,25 @@ function desenharCertificado(canvas,dados){
   c.fillStyle='#c9a84c';c.font='20px Georgia,serif';c.fillText('DE CONCLUSÃO DE CURSO',W/2,240);
   c.strokeStyle=gL();c.lineWidth=1;c.beginPath();c.moveTo(100,260);c.lineTo(W-100,260);c.stroke();
   c.fillStyle='#cbd5e1';c.font='14px Georgia,serif';c.fillText('Certificamos que',W/2,295);
-  c.fillStyle='#fff';c.font='bold 36px Georgia,serif';c.fillText((dados.nome||'').toUpperCase(),W/2,345);
-  const nW=c.measureText((dados.nome||'').toUpperCase()).width;
+  c.fillStyle='#fff';c.font='bold 36px Georgia,serif';c.fillText(dados.nome.toUpperCase(),W/2,345);
+  const nW=c.measureText(dados.nome.toUpperCase()).width;
   c.strokeStyle='#c9a84c';c.lineWidth=1.5;
   c.beginPath();c.moveTo(W/2-nW/2-20,355);c.lineTo(W/2+nW/2+20,355);c.stroke();
   const subTxt=[dados.cargo,dados.empresa].filter(Boolean).join(' · ');
   if(subTxt){c.fillStyle='#94a3b8';c.font='13px Georgia,serif';c.fillText(subTxt,W/2,378);}
   c.fillStyle='#cbd5e1';c.font='14px Georgia,serif';c.fillText('concluiu com aproveitamento o curso de',W/2,408);
-  c.fillStyle='#fbbf24';c.font='bold 22px Georgia,serif';c.fillText((dados.curso||'').toUpperCase(),W/2,440);
+  c.fillStyle='#fbbf24';c.font='bold 22px Georgia,serif';c.fillText(dados.curso.toUpperCase(),W/2,440);
   c.fillStyle='#94a3b8';c.font='13px Georgia,serif';c.fillText(`Carga Horária: ${dados.carga||'—'}`,W/2,462);
   c.strokeStyle=gL();c.lineWidth=1;c.beginPath();c.moveTo(60,482);c.lineTo(W-60,482);c.stroke();
   const c1=155,c2=W/2,c3=W-155;
-  [[c1,'DATA DE EMISSÃO',dados.emissao,'#fff'],
-   [c2,'Nº DO CERTIFICADO',dados.numero||'—','#fff'],
+  [[c1,'DATA DE EMISSÃO',dados.emissao,'#fff'],[c2,'Nº DO CERTIFICADO',dados.numero||'—','#fff'],
    [c3,'VÁLIDO ATÉ',dados.vencimento||'—','#4ade80']].forEach(([x,rot,val,cor])=>{
     c.fillStyle='#c9a84c';c.font='bold 11px Georgia,serif';c.fillText(rot,x,508);
     c.fillStyle=cor;c.font='14px Georgia,serif';c.fillText(val,x,526);
   });
   if(dados.instrutor){
-    c.strokeStyle='#475569';c.lineWidth=1;c.beginPath();c.moveTo(c2-90,556);c.lineTo(c2+90,556);c.stroke();
+    c.strokeStyle='#475569';c.lineWidth=1;
+    c.beginPath();c.moveTo(c2-90,556);c.lineTo(c2+90,556);c.stroke();
     c.fillStyle='#94a3b8';c.font='12px Georgia,serif';c.fillText(dados.instrutor,c2,572);
     c.font='11px Georgia,serif';c.fillText('Instrutor(a) Responsável',c2,587);
   }
@@ -1171,6 +1022,7 @@ function desenharCertificado(canvas,dados){
   c.fillText('safetrack.com.br',W-40,H-35);
   return canvas;
 }
+
 function getDadosCertAtual(){
   if(!certAtual)return null;
   const a=todosAlunos.find(x=>x.id===certAtual.alunoId)||{};
@@ -1179,12 +1031,14 @@ function getDadosCertAtual(){
     emissao:fmtData(certAtual.emissao),vencimento:fmtData(certAtual.vencimento),
     escola:'SafeTrack Treinamentos',instrutor:'',numero:certAtual.numero};
 }
+
 function previewCertModal(){
   const d=getDadosCertAtual(); if(!d)return;
   desenharCertificado(document.getElementById('det-canvas'),d);
   document.getElementById('det-preview').style.display='block';
-  mostrarToast('✅ Pré-visualização gerada!');
+  mostrarToast('✅ Certificado gerado!');
 }
+
 function baixarCertPDF(){
   const d=getDadosCertAtual(); if(!d)return;
   const cv=document.createElement('canvas');
@@ -1194,8 +1048,9 @@ function baixarCertPDF(){
   const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
   pdf.addImage(img,'JPEG',0,0,297,210);
   pdf.save(`Certificado_${d.nome.replace(/\s+/g,'_')}.pdf`);
-  mostrarToast('⬇️ PDF gerado!');
+  mostrarToast('⬇️ PDF baixando!');
 }
+
 function gerarLinkCert(){
   const d=getDadosCertAtual(); if(!d)return;
   const p=new URLSearchParams({cert:1,...d});
@@ -1214,10 +1069,8 @@ async function excluirCert(id){
   await deleteDoc(doc(window.db,'certificados',id));
   fecharModal('modal-cert-det'); mostrarToast('Certificado excluído.');
 }
- 
-// ═══════════════════════════════════════════════
-// PRESENÇA
-// ═══════════════════════════════════════════════
+
+// ─── PRESENÇA ─────────────────────────────────────────────
 function renderPresenca(){
   const empFiltro=document.getElementById('pres-empresa')?.value||'';
   const lista=empFiltro?todosAlunos.filter(a=>a.empresaId===empFiltro):todosAlunos;
@@ -1226,8 +1079,7 @@ function renderPresenca(){
   el.innerHTML=lista.map(a=>`
     <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--borda)">
       <div style="flex:1;font-size:13px;font-weight:600">${a.nome}<br>
-        <span style="font-size:11px;color:var(--sub);font-weight:400">${a.empresaNome||''}</span>
-      </div>
+        <span style="font-size:11px;color:var(--sub);font-weight:400">${a.empresaNome||''}</span></div>
       <div style="display:flex;gap:6px">
         <button class="tog-btn" onclick="toggleP(this,'p')" data-aluno="${a.id}" data-status="">P</button>
         <button class="tog-btn" onclick="toggleP(this,'a')" data-aluno="${a.id}" data-status="">F</button>
@@ -1236,12 +1088,12 @@ function renderPresenca(){
     </div>`).join('');
 }
 function toggleP(btn,tipo){
-  const g=btn.parentElement;
+  const g=btn.closest('div[style]');
   g.querySelectorAll('.tog-btn').forEach(b=>{b.className='tog-btn';b.dataset.status='';});
   btn.classList.add(tipo);btn.dataset.status=tipo;
 }
 async function salvarPresenca(){
-  const curso=document.getElementById('pres-curso').value.trim().toUpperCase();
+  const curso=document.getElementById('pres-curso').value.trim();
   const data =document.getElementById('pres-data').value;
   if(!curso||!data){mostrarToast('Informe o curso e a data!',true);return;}
   const registros=[];
@@ -1251,15 +1103,11 @@ async function salvarPresenca(){
   });
   if(!registros.length){mostrarToast('Marque pelo menos um aluno!',true);return;}
   const{collection,addDoc,serverTimestamp}=window.fsLib;
-  await addDoc(collection(window.db,'presenca'),{
-    userId:window.usuarioLogado.uid, curso,data,registros,criadoEm:serverTimestamp()
-  });
+  await addDoc(collection(window.db,'presenca'),{curso,data,registros,criadoEm:serverTimestamp()});
   mostrarToast(`✅ Presença salva! ${registros.length} aluno(s).`);
 }
- 
-// ═══════════════════════════════════════════════
-// SELECTS (popular dropdowns)
-// ═══════════════════════════════════════════════
+
+// ─── SELECTS ─────────────────────────────────────────────
 function popularSelectEmpresas(){
   ['a-empresa-id','c-empresa-filtro','pres-empresa'].forEach(id=>{
     const sel=document.getElementById(id); if(!sel)return;
@@ -1278,71 +1126,14 @@ function popularSelectAlunos(){
     todosAlunos.map(a=>`<option value="${a.id}">${a.nome}${a.empresaNome?' – '+a.empresaNome:''}</option>`).join('');
   sel.value=val;
 }
- 
-// ═══════════════════════════════════════════════
-// QR CODE — SCANNER REAL
-// ═══════════════════════════════════════════════
+
+// ─── QR CODE ─────────────────────────────────────────────
 function mudarModoQR(modo,chip){
   document.querySelectorAll('#t-qr .chips .chip').forEach(c=>c.classList.remove('ativo'));
   chip.classList.add('ativo');
-  if(modo==='scan'){
-    document.getElementById('qr-scan').style.display='';
-    document.getElementById('qr-gerar').style.display='none';
-  } else {
-    document.getElementById('qr-scan').style.display='none';
-    document.getElementById('qr-gerar').style.display='';
-    pararScanner();
-  }
+  document.getElementById('qr-scan').style.display=modo==='scan'?'':'none';
+  document.getElementById('qr-gerar').style.display=modo==='gerar'?'':'none';
 }
- 
-function iniciarScanner(){
-  if(_html5Scanner){
-    _html5Scanner.resume?.(); return;
-  }
-  document.getElementById('qr-scan-status').textContent='Iniciando câmera…';
-  document.getElementById('btn-iniciar-scan').style.display='none';
-  document.getElementById('btn-parar-scan').style.display='';
- 
-  _html5Scanner = new Html5Qrcode('qr-reader');
-  _html5Scanner.start(
-    {facingMode:'environment'},
-    {fps:10, qrbox:{width:200,height:200}},
-    (decodedText)=>{
-      pararScanner();
-      // Tenta extrair ?aluno=ID do link lido
-      try{
-        const url=new URL(decodedText);
-        const alunoId=url.searchParams.get('aluno');
-        if(alunoId){
-          mostrarToast('QR Code lido! Carregando perfil…');
-          setTimeout(()=>abrirPerfil(alunoId),400);
-          return;
-        }
-      }catch(e){}
-      mostrarToast('QR Code lido: '+decodedText);
-    },
-    ()=>{} // erro de leitura (normal — ignora)
-  ).then(()=>{
-    document.getElementById('qr-scan-status').textContent='📷 Câmera ativa — aponte para o QR Code';
-  }).catch(err=>{
-    document.getElementById('qr-scan-status').textContent='❌ Sem acesso à câmera. Verifique permissões e use HTTPS.';
-    document.getElementById('btn-iniciar-scan').style.display='';
-    document.getElementById('btn-parar-scan').style.display='none';
-    _html5Scanner=null;
-  });
-}
- 
-function pararScanner(){
-  if(_html5Scanner){
-    _html5Scanner.stop().catch(()=>{});
-    _html5Scanner=null;
-    document.getElementById('btn-iniciar-scan').style.display='';
-    document.getElementById('btn-parar-scan').style.display='none';
-    document.getElementById('qr-scan-status').textContent='Câmera parada.';
-  }
-}
- 
-// ─── GERAR QR ─────────────────────────────────
 function gerarQR(){
   const id=document.getElementById('sel-aluno-qr').value;
   const res=document.getElementById('qr-result');
@@ -1359,31 +1150,26 @@ function baixarQR(){
   if(!cv)return;
   const a=document.createElement('a');a.download='qrcode.png';a.href=cv.toDataURL('image/png');a.click();
 }
- 
-// ═══════════════════════════════════════════════
-// ABRIR VIA URL (link certificado ou perfil)
-// ═══════════════════════════════════════════════
+function simularScan(){
+  mostrarToast('QR Code lido! Carregando perfil…');
+  if(todosAlunos.length)setTimeout(()=>abrirPerfil(todosAlunos[0].id),800);
+  else mostrarToast('Cadastre alunos primeiro.',true);
+}
+
+// ─── ABRIR VIA URL ────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
   const p=new URLSearchParams(location.search);
- 
-  // ?aluno=ID → abre perfil (modo público, sem login)
   if(p.get('aluno')){
-    // Espera carregar dados, então abre
-    const check=setInterval(()=>{
-      if(todosAlunos.length){ clearInterval(check); abrirPerfil(p.get('aluno')); }
-    },400);
-    setTimeout(()=>clearInterval(check),10000);
+    const esp=setInterval(()=>{
+      if(todosAlunos.length){clearInterval(esp);abrirPerfil(p.get('aluno'));}
+    },300);
   }
- 
-  // ?cert=1 → renderiza certificado público
   if(p.get('cert')){
-    const dados={
-      nome:p.get('nome')||'',cpf:p.get('cpf')||'',empresa:p.get('empresa')||'',
+    const dados={nome:p.get('nome')||'',cpf:p.get('cpf')||'',empresa:p.get('empresa')||'',
       cargo:p.get('cargo')||'',curso:p.get('curso')||'',carga:p.get('carga')||'',
       emissao:p.get('emissao')||'',vencimento:p.get('vencimento')||'',
       escola:p.get('escola')||'SafeTrack Treinamentos',
-      instrutor:p.get('instrutor')||'',numero:p.get('numero')||''
-    };
+      instrutor:p.get('instrutor')||'',numero:p.get('numero')||''};
     document.body.innerHTML=`
       <div style="max-width:430px;margin:0 auto;padding:20px;font-family:system-ui,sans-serif;background:#f0f4f8;min-height:100vh">
         <div style="text-align:center;margin-bottom:16px">
